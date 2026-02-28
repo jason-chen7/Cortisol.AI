@@ -13,12 +13,13 @@ export class StressWebSocket {
    *   onChunkResult:  (msg: object) => void,
    *   onFinalSummary: (msg: object) => void,
    *   onTranscript:   (msg: object) => void,
+   *   onVoiceAudio:   (msg: object) => void,
    *   onError:        (message: string) => void,
    *   onClose:        () => void,
    * }} handlers
    */
-  constructor({ onChunkResult, onFinalSummary, onTranscript, onError, onClose }) {
-    this._handlers = { onChunkResult, onFinalSummary, onTranscript, onError, onClose }
+  constructor({ onChunkResult, onFinalSummary, onTranscript, onVoiceAudio, onError, onClose }) {
+    this._handlers = { onChunkResult, onFinalSummary, onTranscript, onVoiceAudio, onError, onClose }
     this._ws = null
   }
 
@@ -32,6 +33,7 @@ export class StressWebSocket {
         if      (msg.type === 'chunk_result')  this._handlers.onChunkResult(msg)
         else if (msg.type === 'final_summary') this._handlers.onFinalSummary(msg)
         else if (msg.type === 'transcript')    { console.log('[WS] transcript:', msg.text); this._handlers.onTranscript?.(msg) }
+        else if (msg.type === 'voice_audio')   this._handlers.onVoiceAudio?.(msg)
         else if (msg.type === 'error')         this._handlers.onError(msg.message)
       } catch {
         this._handlers.onError('Failed to parse server message.')

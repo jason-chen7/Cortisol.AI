@@ -15,7 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from audio_utils import SlidingWindowBuffer, float32_to_tensor, pcm16_to_float32
 from elevenlabs_transcriber import transcribe_chunk
+from elevenlabs_tts import synthesize_speech
 from featherless_analyzer import analyze_transcript
+from gemini_summarizer import generate_spoken_summary
 from model import SAMPLE_RATE, get_model
 from smoothing import EMASmoothing
 
@@ -100,10 +102,10 @@ def build_reasoning(
 @app.on_event("startup")
 async def _preload_model() -> None:
     get_model()
-    eleven_key    = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    eleven_key      = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     featherless_key = os.environ.get("FEATHERLESS_API_KEY", "").strip()
-    print(f"[startup] ElevenLabs key   : {'✓ set' if eleven_key    else '✗ NOT SET — transcription disabled'}")
-    print(f"[startup] Featherless key  : {'✓ set' if featherless_key else '✗ NOT SET — LLM analysis disabled'}")
+    print(f"[startup] ElevenLabs key   : {'✓ set' if eleven_key      else '✗ NOT SET — transcription/TTS disabled'}")
+    print(f"[startup] Featherless key  : {'✓ set' if featherless_key else '✗ NOT SET — LLM analysis + spoken summary disabled'}")
 
 
 # ── WebSocket endpoint ────────────────────────────────────────────────────────
@@ -234,9 +236,12 @@ async def _send_summary(
     # Rule-based reasoning is always available as a fallback
     reasoning = build_reasoning(distribution, dominant_emotion, avg_score)
 
-    # LLM-enhanced reasoning from Featherless AI (uses transcript + audio data)
-    enhanced_reasoning = await analyze_transcript(
-        transcript, distribution, dominant_emotion, avg_score
+    # Run LLM analysis and Gemini spoken summary concurrently
+    enhanced_reasoning, spoken_text = await asyncio.gather(
+        analyze_transcript(transcript, distribution, dominant_emotion, avg_score),
+        generate_spoken_summary(
+            overall_stress, avg_score, distribution, dominant_emotion, transcript
+        ),
     )
 
     summary = {
@@ -246,11 +251,25 @@ async def _send_summary(
         "distribution":       distribution,
         "dominant_emotion":   dominant_emotion,
         "reasoning":          reasoning,
-        "enhanced_reasoning": enhanced_reasoning,   # "" when Featherless key absent
+        "enhanced_reasoning": enhanced_reasoning,
         "transcript":         transcript,
     }
 
     try:
         await websocket.send_text(json.dumps(summary))
     except Exception:
-        pass
+        return
+
+    # Synthesize speech and send audio if we got spoken text
+    if spoken_text:
+        import base64
+        mp3_bytes = await synthesize_speech(spoken_text)
+        if mp3_bytes:
+            try:
+                await websocket.send_text(json.dumps({
+                    "type":        "voice_audio",
+                    "audio_b64":   base64.b64encode(mp3_bytes).decode(),
+                    "spoken_text": spoken_text,
+                }))
+            except Exception:
+                pass

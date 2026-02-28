@@ -16,14 +16,16 @@ const PALETTE = {
   red:    { bg: 0x1a0404, rim: 0xef4444, rimIntensity: 3.5 },
 }
 
-export default function Head3D({ analyserNode, stressColor = 'green' }) {
+export default function Head3D({ analyserNode, stressColor = 'green', frozen = false }) {
   const mountRef    = useRef(null)
   const colorRef    = useRef(stressColor)
   const analyserRef = useRef(analyserNode)
+  const frozenRef   = useRef(frozen)
 
   // Keep refs in sync with props (no scene rebuild needed)
-  useEffect(() => { colorRef.current = stressColor },  [stressColor])
+  useEffect(() => { colorRef.current = stressColor },    [stressColor])
   useEffect(() => { analyserRef.current = analyserNode }, [analyserNode])
+  useEffect(() => { frozenRef.current = frozen },        [frozen])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -162,20 +164,20 @@ export default function Head3D({ analyserNode, stressColor = 'green' }) {
 
     // ── Mouth ─────────────────────────────────────────────────────────────────
     const mouthPivot = new THREE.Group()
-    mouthPivot.position.set(0, -0.44, 0.99)
+    mouthPivot.position.set(0, -0.44, 1.08)   // pushed forward past face surface
     headGroup.add(mouthPivot)
 
-    const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.085, 0.065), lipMat)
-    upperLip.position.set(0, 0.048, 0)
+    const upperLip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.09, 0.1), lipMat)
+    upperLip.position.set(0, 0.052, 0)
     mouthPivot.add(upperLip)
 
-    const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.095, 0.065), lipMat)
-    lowerLip.position.set(0, -0.048, 0)
+    const lowerLip = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.10, 0.1), lipMat)
+    lowerLip.position.set(0, -0.052, 0)
     mouthPivot.add(lowerLip)
 
     // Dark interior — scales on Y when mouth opens
-    const mouthInner = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.01, 0.05), mouthInteriorMat)
-    mouthInner.position.set(0, 0, -0.01)
+    const mouthInner = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.01, 0.08), mouthInteriorMat)
+    mouthInner.position.set(0, 0, -0.02)
     mouthPivot.add(mouthInner)
 
     // ── Glow halo (stress color aura) ─────────────────────────────────────────
@@ -205,8 +207,12 @@ export default function Head3D({ analyserNode, stressColor = 'green' }) {
       rafId = requestAnimationFrame(animate)
       const t = clock.getElapsedTime()
 
-      // Continuous Y rotation
-      headGroup.rotation.y = t * 0.55
+      // Rotate when idle/recording; smoothly face forward when speaking
+      if (frozenRef.current) {
+        headGroup.rotation.y += (0 - headGroup.rotation.y) * 0.06
+      } else {
+        headGroup.rotation.y = t * 0.55
+      }
 
       // Subtle vertical bob
       headGroup.position.y = Math.sin(t * 0.9) * 0.07
