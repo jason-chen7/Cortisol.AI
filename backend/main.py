@@ -32,6 +32,11 @@ app.add_middleware(
 
 # ── Emotion → Stress mapping ──────────────────────────────────────────────────
 _EMOTION_TABLE: dict[str, tuple[str, float, str]] = {
+    # Direct stress labels (from fine-tuned model)
+    "low":       ("Low",    0.15, "green"),
+    "medium":    ("Medium", 0.5,  "yellow"),
+    "high":      ("High",   0.85, "red"),
+    # Emotion labels (from pre-trained fallback model)
     "calm":      ("Low",    0.2, "green"),
     "neutral":   ("Low",    0.2, "green"),
     "neu":       ("Low",    0.2, "green"),
@@ -104,8 +109,8 @@ async def _preload_model() -> None:
     get_model()
     eleven_key      = os.environ.get("ELEVENLABS_API_KEY", "").strip()
     featherless_key = os.environ.get("FEATHERLESS_API_KEY", "").strip()
-    print(f"[startup] ElevenLabs key   : {'✓ set' if eleven_key      else '✗ NOT SET — transcription/TTS disabled'}")
-    print(f"[startup] Featherless key  : {'✓ set' if featherless_key else '✗ NOT SET — LLM analysis + spoken summary disabled'}")
+    print(f"[startup] ElevenLabs key   : {'SET' if eleven_key      else 'NOT SET - transcription/TTS disabled'}")
+    print(f"[startup] Featherless key  : {'SET' if featherless_key else 'NOT SET - LLM analysis + spoken summary disabled'}")
 
 
 # ── WebSocket endpoint ────────────────────────────────────────────────────────

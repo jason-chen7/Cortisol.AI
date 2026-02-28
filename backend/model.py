@@ -1,17 +1,19 @@
 """
-model.py — Emotion inference wrapper.
+model.py — Emotion / stress inference wrapper.
 
-Swap this file's _load_model() to point at a local path when ready:
-    MODEL_SOURCE = "models/stress_model/"
-All other files remain unchanged.
+Loads the fine-tuned 3-class stress model from models/stress_model/ when
+available, otherwise falls back to the pre-trained HuBERT emotion checkpoint.
+Both expose the same predict_emotion() interface for main.py compatibility.
 """
+
+from pathlib import Path
 
 import torch
 from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
 
-# ── Change this constant to switch models ────────────────────────────────────
-MODEL_SOURCE = "superb/wav2vec2-base-superb-er"
-# MODEL_SOURCE = "models/stress_model/"          # ← local model (future)
+# ── Model paths ───────────────────────────────────────────────────────────────
+_LOCAL_MODEL = "models/stress_model"
+_FALLBACK_MODEL = "superb/hubert-base-superb-er"
 # ─────────────────────────────────────────────────────────────────────────────
 
 SAMPLE_RATE = 16_000
@@ -24,8 +26,16 @@ class EmotionModel:
         self._load_model()
 
     def _load_model(self) -> None:
-        self.feature_extractor = AutoFeatureExtractor.from_pretrained(MODEL_SOURCE)
-        self.model = AutoModelForAudioClassification.from_pretrained(MODEL_SOURCE)
+        if Path(_LOCAL_MODEL).exists():
+            source = _LOCAL_MODEL
+            print(f"[model] Loading fine-tuned stress model from {source}")
+        else:
+            source = _FALLBACK_MODEL
+            print(f"[model] {_LOCAL_MODEL} not found — using pre-trained {source}")
+            print("[model] Run 'python train.py' to fine-tune for stress detection")
+
+        self.feature_extractor = AutoFeatureExtractor.from_pretrained(source)
+        self.model = AutoModelForAudioClassification.from_pretrained(source)
         self.model.to(self.device)
         self.model.eval()
 
